@@ -24,7 +24,15 @@ builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 builder.Services.AddProblemDetails();
 
-// 4. JWT Authentication
+// 4. OpenAPI / Swagger Documentation
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// 5. Health Checks
+builder.Services.AddHealthChecks()
+    .AddDbContextCheck<AppDbContext>();
+
+// 6. JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -47,10 +55,18 @@ var app = builder.Build();
 
 // Middleware Pipeline
 app.UseExceptionHandler();
+
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Root Endpoint
+// Health Check & Root Endpoints
+app.MapHealthChecks("/health");
 app.MapGet("/", () => "Student Marks Management API is running!");
 
 // Authentication Endpoints

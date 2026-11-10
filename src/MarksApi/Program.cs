@@ -56,5 +56,11 @@ app.MapPost("/api/auth/login", async (LoginRequest request, IAuthService authSer
 });
 
 app.MapGet("/", () => "Student Marks Management API is running!");
+// Seed initial database data
+using (var scope = app.Services.CreateScope())
+{
+    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await DbInitializer.SeedAsync(context);
+}
 
 app.Run();

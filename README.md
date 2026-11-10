@@ -52,3 +52,7 @@ Update your database connection string and JWT settings in `src/MarksApi/appsett
     "Key": "YourSuperSecretKeyHereWhichIsAtLeast32BytesLong!"
   }
 }
+Database Setup & RunNavigate to the API project directory:Bashcd src/MarksApi
+Apply EF Core database migrations:Bashdotnet ef database update
+Run the application:Bashdotnet run
+Default Demo CredentialsOn startup, the API automatically seeds demo user accounts:RoleUsernamePasswordTeacherteacherTeacher123!StudentstudentStudent123!

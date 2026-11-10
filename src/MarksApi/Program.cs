@@ -24,9 +24,8 @@ builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
 builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 builder.Services.AddProblemDetails();
 
-// 4. OpenAPI / Swagger Documentation
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+// 4. Native .NET 10 OpenAPI Documentation
+builder.Services.AddOpenApi();
 
 // 5. Health Checks
 builder.Services.AddHealthChecks()
@@ -58,8 +57,7 @@ app.UseExceptionHandler();
 
 if (app.Environment.IsDevelopment())
 {
-    app.UseSwagger();
-    app.UseSwaggerUI();
+    app.MapOpenApi();
 }
 
 app.UseAuthentication();

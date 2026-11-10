@@ -9,19 +9,19 @@ using MarksApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// DbContext
+// 1. Database Context
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(builder.Configuration.GetConnectionString("Database"))
            .UseSnakeCaseNamingConvention());
 
-// Services
+// 2. Custom Services
 builder.Services.AddScoped<IAuthService, AuthService>();
 
-// Exception Handling
+// 3. Exception Handling (RFC 7807 Problem Details)
 builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
 builder.Services.AddProblemDetails();
 
-// JWT Authentication
+// 4. JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
@@ -42,11 +42,15 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
+// Middleware Pipeline
 app.UseExceptionHandler();
 app.UseAuthentication();
 app.UseAuthorization();
 
-// Auth Endpoints
+// Root Endpoint
+app.MapGet("/", () => "Student Marks Management API is running!");
+
+// Authentication Endpoints
 app.MapPost("/api/auth/login", async (LoginRequest request, IAuthService authService, CancellationToken ct) =>
 {
     var response = await authService.LoginAsync(request, ct);
@@ -55,8 +59,7 @@ app.MapPost("/api/auth/login", async (LoginRequest request, IAuthService authSer
         : Results.Ok(response);
 });
 
-app.MapGet("/", () => "Student Marks Management API is running!");
-// Seed initial database data
+// Database Seeding
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();

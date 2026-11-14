@@ -1,0 +1,454 @@
+{
+  "info": {
+    "_postman_id": "f570cbdb-8387-4e20-a479-924211e4cbe7",
+    "name": "Marks API",
+    "description": "Ordered reference checks for the Student Marks Management API. Set teacherPassword and studentPassword in Local to the values configured in user-secrets.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      { "key": "token", "value": "{{token}}", "type": "string" }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (pm.info.requestName === 'Create Student') {",
+          "  const stamp = Date.now();",
+          "  pm.collectionVariables.set('pmStudentRegistrationNo', 'PM-' + stamp);",
+          "  pm.collectionVariables.set('pmStudentEmail', 'pm-' + stamp + '@example.test');",
+          "}",
+          "if (pm.info.requestName === 'Create Course') {",
+          "  pm.collectionVariables.set('pmCourseCode', 'P' + String(Date.now()).slice(-9));",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "const expectedByName = {",
+          "  'Teacher Login': 200, 'Student Login': 200, 'Invalid Login': 401,",
+          "  'Health Check': 200, 'Health Check Repeat': 200,",
+          "  'Transcript Report': 200, 'Course Stats Report': 200,",
+          "  'List Students': 200, 'Search Students': 200, 'Clamp Student Page Query': 200,",
+          "  'Get Seed Student': 200, 'Student Reads Own Record': 200,",
+          "  'Student Reads Own Transcript': 200, 'Student Cannot List Students': 403,",
+          "  'Student Cannot Read Other Student': 403, 'Create Student': 201, 'Duplicate Student': 409,",
+          "  'Update Student': 200, 'Unknown Student': 404, 'Invalid Student Body': 400,",
+          "  'List Courses': 200, 'Get Seed Course': 200, 'Student Reads Course': 200,",
+          "  'Create Course': 201, 'Update Course': 200, 'Unknown Course': 404,",
+          "  'Enroll Student': 201, 'Duplicate Enrollment': 409, 'List Course Enrollments': 200,",
+          "  'Search Course Enrollments': 200,",
+          "  'Course Stats': 200, 'Unknown Course Stats': 404, 'Delete Enrolled Student': 409,",
+          "  'Delete Enrolled Course': 409, 'Mark 101 Rejected': 400, 'Mark -1 Rejected': 400,",
+          "  'Update Mark': 200, 'Unknown Enrollment Mark': 404, 'Delete Enrollment': 204,",
+          "  'Delete Course': 204, 'Delete Student': 204, 'Unauthenticated Courses': 401,",
+          "  'Unknown Enrollment Delete': 404",
+          "};",
+          "const name = pm.info.requestName;",
+          "const expected = expectedByName[name];",
+          "pm.test('Expected status code: ' + expected, function () {",
+          "  pm.expect(expected, 'request must be registered in the expected-status table').to.be.a('number');",
+          "  pm.expect(pm.response.code).to.eql(expected);",
+          "});",
+          "pm.test('Response has the expected JSON or empty shape', function () {",
+          "  if (expected === 204) { pm.expect(pm.response.text()).to.eql(''); }",
+          "  else { pm.expect(pm.response.json()).to.be.an('object'); }",
+          "});",
+          "if ([400, 401, 403, 404, 409].includes(expected)) {",
+          "  pm.test('Error uses Problem Details', function () {",
+          "    const problem = pm.response.json();",
+          "    pm.expect(problem.status).to.eql(expected);",
+          "    pm.expect(problem.title).to.be.a('string').and.not.empty;",
+          "    if (expected === 400) pm.expect(problem.errors).to.be.an('object');",
+          "    else pm.expect(problem.detail).to.be.a('string').and.not.empty;",
+          "  });",
+          "}",
+          "if (expected === 201) {",
+          "  pm.test('Created response includes a Location header', function () {",
+          "    pm.expect(pm.response.headers.get('Location')).to.be.a('string').and.not.empty;",
+          "  });",
+          "}",
+          "if (['List Students', 'Search Students', 'Clamp Student Page Query', 'List Courses', 'List Course Enrollments', 'Search Course Enrollments'].includes(name)) {",
+          "  pm.test('Paged list has the documented shape', function () {",
+          "    const page = pm.response.json();",
+          "    pm.expect(page.items).to.be.an('array');",
+          "    pm.expect(page.page).to.be.a('number');",
+          "    pm.expect(page.pageSize).to.be.a('number');",
+          "    pm.expect(page.totalCount).to.be.a('number');",
+          "  });",
+          "}",
+          "if (name === 'Clamp Student Page Query') {",
+          "  pm.test('Page values are corrected to server limits', function () {",
+          "    pm.expect(pm.response.json().page).to.eql(1);",
+          "    pm.expect(pm.response.json().pageSize).to.eql(50);",
+          "  });",
+          "}",
+          "if (name === 'Search Students') {",
+          "  pm.test('Search returns the requested registration number', function () {",
+          "    pm.expect(pm.response.json().items.some(x => x.registrationNo === 'CS-2022-001')).to.eql(true);",
+          "  });",
+          "}",
+          "if (name === 'Search Course Enrollments') {",
+          "  pm.test('Search returns at least one matching enrollment', function () {",
+          "    pm.expect(pm.response.json().items.length).to.be.greaterThan(0);",
+          "  });",
+          "}",
+          "if (name === 'Transcript Report') {",
+          "  pm.test('Transcript weighted average is credit-hour weighted', function () {",
+          "    pm.expect(pm.response.json().weightedAverage).to.eql(72);",
+          "  });",
+          "}",
+          "if (name === 'Course Stats Report') {",
+          "  pm.test('Course statistics average only graded marks', function () {",
+          "    const stats = pm.response.json();",
+          "    pm.expect(stats.average).to.eql(75);",
+          "    pm.expect(stats.highest).to.eql(80);",
+          "    pm.expect(stats.lowest).to.eql(70);",
+          "    pm.expect(stats.passed).to.eql(2);",
+          "  });",
+          "}",
+          "if (pm.response.code === 200 && name === 'Teacher Login') pm.environment.set('token', pm.response.json().token);",
+          "if (pm.response.code === 200 && name === 'Student Login') pm.collectionVariables.set('studentToken', pm.response.json().token);",
+          "if (pm.response.code === 200 && name === 'List Students') {",
+          "  const items = pm.response.json().items;",
+          "  const first = items.find(x => x.registrationNo === 'CS-2022-001');",
+          "  const second = items.find(x => x.registrationNo === 'CS-2022-002');",
+          "  if (first) pm.collectionVariables.set('seedStudentId', first.id);",
+          "  if (second) pm.collectionVariables.set('otherStudentId', second.id);",
+          "}",
+          "if (pm.response.code === 201 && name === 'Create Student') pm.collectionVariables.set('studentId', pm.response.json().id);",
+          "if (pm.response.code === 200 && name === 'List Courses') {",
+          "  const course = pm.response.json().items.find(x => x.code === 'CS401');",
+          "  if (course) pm.collectionVariables.set('seedCourseId', course.id);",
+          "}",
+          "if (pm.response.code === 201 && name === 'Create Course') pm.collectionVariables.set('courseId', pm.response.json().id);",
+          "if (pm.response.code === 201 && name === 'Enroll Student') pm.collectionVariables.set('enrollmentId', pm.response.json().id);"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    { "key": "studentId", "value": "" },
+    { "key": "courseId", "value": "" },
+    { "key": "enrollmentId", "value": "" },
+    { "key": "seedStudentId", "value": "" },
+    { "key": "otherStudentId", "value": "" },
+    { "key": "seedCourseId", "value": "" },
+    { "key": "studentToken", "value": "" }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Teacher Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"username\":\"teacher1\",\"password\":\"{{teacherPassword}}\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Student Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"username\":\"student1\",\"password\":\"{{studentPassword}}\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": { "type": "noauth" }
+          }
+        },
+        {
+          "name": "Invalid Login",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"username\":\"teacher1\",\"password\":\"not-the-password\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/auth/login",
+            "auth": { "type": "noauth" }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health", "auth": { "type": "noauth" } }
+        },
+        {
+          "name": "Health Check Repeat",
+          "request": { "method": "GET", "url": "{{baseUrl}}/health", "auth": { "type": "noauth" } }
+        }
+      ]
+    },
+    {
+      "name": "Students",
+      "item": [
+        {
+          "name": "List Students",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/students?page=1&pageSize=50&sort=fullName" }
+        },
+        {
+          "name": "Search Students",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/students?search=CS-2022-001&sort=-registrationNo" }
+        },
+        {
+          "name": "Clamp Student Page Query",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/students?page=0&pageSize=100" }
+        },
+        {
+          "name": "Get Seed Student",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/students/{{seedStudentId}}" }
+        },
+        {
+          "name": "Student Reads Own Record",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/students/{{seedStudentId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] }
+          }
+        },
+        {
+          "name": "Student Reads Own Transcript",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/students/{{seedStudentId}}/transcript",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] }
+          }
+        },
+        {
+          "name": "Student Cannot List Students",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/students",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] }
+          }
+        },
+        {
+          "name": "Student Cannot Read Other Student",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/students/{{otherStudentId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] }
+          }
+        },
+        {
+          "name": "Create Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"registrationNo\":\"{{pmStudentRegistrationNo}}\",\"fullName\":\"Postman Student\",\"email\":\"{{pmStudentEmail}}\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/students"
+          }
+        },
+        {
+          "name": "Duplicate Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"registrationNo\":\"{{pmStudentRegistrationNo}}\",\"fullName\":\"Postman Duplicate\",\"email\":\"other-{{pmStudentRegistrationNo}}@example.test\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/students"
+          }
+        },
+        {
+          "name": "Update Student",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"registrationNo\":\"{{pmStudentRegistrationNo}}\",\"fullName\":\"Postman Student Updated\",\"email\":\"{{pmStudentEmail}}\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/students/{{studentId}}"
+          }
+        },
+        {
+          "name": "Unknown Student",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/students/2147483647" }
+        },
+        {
+          "name": "Invalid Student Body",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"registrationNo\":\"\",\"fullName\":\"\",\"email\":\"bad\"}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/students"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Courses",
+      "item": [
+        {
+          "name": "List Courses",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses?page=1&pageSize=50&sort=code" }
+        },
+        {
+          "name": "Get Seed Course",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/{{seedCourseId}}" }
+        },
+        {
+          "name": "Student Reads Course",
+          "request": {
+            "method": "GET",
+            "url": "{{baseUrl}}/api/courses/{{seedCourseId}}",
+            "auth": { "type": "bearer", "bearer": [{ "key": "token", "value": "{{studentToken}}", "type": "string" }] }
+          }
+        },
+        {
+          "name": "Create Course",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"code\":\"{{pmCourseCode}}\",\"title\":\"Postman Test Course\",\"creditHours\":2}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/courses"
+          }
+        },
+        {
+          "name": "Update Course",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"code\":\"{{pmCourseCode}}\",\"title\":\"Postman Test Course Updated\",\"creditHours\":3}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/courses/{{courseId}}"
+          }
+        },
+        {
+          "name": "Unknown Course",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/2147483647" }
+        }
+      ]
+    },
+    {
+      "name": "Reports",
+      "item": [
+        {
+          "name": "Transcript Report",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/students/{{seedStudentId}}/transcript" }
+        },
+        {
+          "name": "Course Stats Report",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/{{seedCourseId}}/stats" }
+        }
+      ]
+    },
+    {
+      "name": "Enrollments and Marks",
+      "item": [
+        {
+          "name": "Enroll Student",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"studentId\":{{studentId}}}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/courses/{{courseId}}/enrollments"
+          }
+        },
+        {
+          "name": "Duplicate Enrollment",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"studentId\":{{studentId}}}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/courses/{{courseId}}/enrollments"
+          }
+        },
+        {
+          "name": "List Course Enrollments",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/{{courseId}}/enrollments?page=1&pageSize=50&sort=studentId" }
+        },
+        {
+          "name": "Search Course Enrollments",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/{{courseId}}/enrollments?search=Postman" }
+        },
+        {
+          "name": "Course Stats",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/{{courseId}}/stats" }
+        },
+        {
+          "name": "Unknown Course Stats",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses/2147483647/stats" }
+        },
+        {
+          "name": "Delete Enrolled Student",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/students/{{studentId}}" }
+        },
+        {
+          "name": "Delete Enrolled Course",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/courses/{{courseId}}" }
+        },
+        {
+          "name": "Mark 101 Rejected",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"mark\":101}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/enrollments/{{enrollmentId}}/mark"
+          }
+        },
+        {
+          "name": "Mark -1 Rejected",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"mark\":-1}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/enrollments/{{enrollmentId}}/mark"
+          }
+        },
+        {
+          "name": "Update Mark",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"mark\":80}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/enrollments/{{enrollmentId}}/mark"
+          }
+        },
+        {
+          "name": "Unknown Enrollment Mark",
+          "request": {
+            "method": "PUT",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\"mark\":80}", "options": { "raw": { "language": "json" } } },
+            "url": "{{baseUrl}}/api/enrollments/2147483647/mark"
+          }
+        },
+        {
+          "name": "Delete Enrollment",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/enrollments/{{enrollmentId}}" }
+        },
+        {
+          "name": "Delete Course",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/courses/{{courseId}}" }
+        },
+        {
+          "name": "Delete Student",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/students/{{studentId}}" }
+        }
+      ]
+    },
+    {
+      "name": "Negative Tests",
+      "item": [
+        {
+          "name": "Unauthenticated Courses",
+          "request": { "method": "GET", "url": "{{baseUrl}}/api/courses", "auth": { "type": "noauth" } }
+        },
+        {
+          "name": "Unknown Enrollment Delete",
+          "request": { "method": "DELETE", "url": "{{baseUrl}}/api/enrollments/2147483647" }
+        }
+      ]
+    }
+  ]
+}

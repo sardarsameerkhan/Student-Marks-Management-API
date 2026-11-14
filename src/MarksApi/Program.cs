@@ -1,168 +1,153 @@
+using System.Security.Claims;
 using System.Text;
+using MarksApi;
+using MarksApi.Data;
+using MarksApi.Infrastructure;
+using MarksApi.SmokeTests;
+using MarksApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using MarksApi.Data;
-using MarksApi.Dtos;
-using MarksApi.Middleware;
-using MarksApi.Services;
 
 var builder = WebApplication.CreateBuilder(args);
+builder.Logging.AddFilter("Microsoft.AspNetCore.Diagnostics.ExceptionHandlerMiddleware", LogLevel.None);
+var smokeRequested = args.Contains("--smoke-test", StringComparer.OrdinalIgnoreCase)
+    || builder.Configuration.GetValue<bool>("SMOKE_TEST");
+if (smokeRequested)
+    builder.WebHost.UseUrls("http://127.0.0.1:0");
 
-// 1. Database Context
+var connectionString = builder.Configuration.GetConnectionString("Database")
+    ?? throw new InvalidOperationException("ConnectionStrings:Database is not configured.");
+var jwtKey = builder.Configuration["Jwt:Key"]
+    ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+if (Encoding.UTF8.GetByteCount(jwtKey) < 32)
+    throw new InvalidOperationException("Jwt:Key must contain at least 32 bytes.");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("Database"))
-           .UseSnakeCaseNamingConvention());
-
-// 2. Custom Services
+    options.UseNpgsql(connectionString).UseSnakeCaseNamingConvention());
+builder.Services.AddHealthChecks().AddDbContextCheck<AppDbContext>("database");
+builder.Services.AddProblemDetails();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddScoped<IPasswordHasher<AppUser>, PasswordHasher<AppUser>>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IStudentService, StudentService>();
 builder.Services.AddScoped<ICourseService, CourseService>();
-builder.Services.AddScoped<IEnrollmentService, EnrollmentService>();
-
-// 3. Exception Handling (RFC 7807 Problem Details)
-builder.Services.AddExceptionHandler<ProblemDetailsExceptionHandler>();
-builder.Services.AddProblemDetails();
-
-// 4. Native .NET 10 OpenAPI Documentation
-builder.Services.AddOpenApi();
-
-// 5. Health Checks
-builder.Services.AddHealthChecks()
-    .AddDbContextCheck<AppDbContext>();
-
-// 6. JWT Authentication
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
     {
         options.TokenValidationParameters = new TokenValidationParameters
         {
             ValidateIssuer = true,
-            ValidateAudience = true,
-            ValidateLifetime = true,
-            ValidateIssuerSigningKey = true,
             ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
             ValidAudience = builder.Configuration["Jwt:Audience"],
-            IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(builder.Configuration["Jwt:Key"]!))
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromSeconds(30),
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.Name
         };
     });
-
 builder.Services.AddAuthorization();
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen(options =>
+{
+    options.SwaggerDoc("v1", new() { Title = "Student Marks Management API", Version = "v1" });
+    options.AddSecurityDefinition("Bearer", new()
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header
+    });
+    options.AddSecurityRequirement(new()
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            Array.Empty<string>()
+        }
+    });
+});
+var origins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>() ?? [];
+builder.Services.AddCors(options => options.AddDefaultPolicy(policy =>
+    policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod()));
 
 var app = builder.Build();
-
-// Middleware Pipeline
-app.UseExceptionHandler();
-
-if (app.Environment.IsDevelopment())
+if (smokeRequested)
 {
-    app.MapOpenApi();
+    if (!app.Environment.IsDevelopment())
+        throw new InvalidOperationException("Smoke tests are disabled outside the Development environment.");
 }
-
+app.UseExceptionHandler();
+app.UseStatusCodePages(async statusContext =>
+{
+    var response = statusContext.HttpContext.Response;
+    var (title, detail) = response.StatusCode switch
+    {
+        StatusCodes.Status401Unauthorized =>
+            ("Unauthorized", "Authentication is required to access this resource."),
+        StatusCodes.Status403Forbidden =>
+            ("Forbidden", "You do not have permission to access this resource."),
+        StatusCodes.Status404NotFound =>
+            ("Not Found", "The requested resource was not found."),
+        _ => ("Request Failed", "The request could not be completed.")
+    };
+    response.ContentType = "application/problem+json";
+    await response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+    {
+        Status = response.StatusCode,
+        Title = title,
+        Detail = detail,
+        Instance = statusContext.HttpContext.Request.Path
+    }, statusContext.HttpContext.RequestAborted);
+});
+app.UseHttpsRedirection();
+app.UseCors();
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseSwagger();
+app.UseSwaggerUI();
+app.MapApiEndpoints();
 
-// Health Check & Root Endpoints
-app.MapHealthChecks("/health");
-app.MapGet("/", () => "Student Marks Management API is running!");
-
-// Authentication Endpoints
-app.MapPost("/api/auth/login", async (LoginRequest request, IAuthService authService, CancellationToken ct) =>
+await using (var scope = app.Services.CreateAsyncScope())
 {
-    var response = await authService.LoginAsync(request, ct);
-    return response is null 
-        ? Results.Problem(statusCode: 401, title: "Invalid username or password") 
-        : Results.Ok(response);
-});
-
-// Student Endpoints
-var studentGroup = app.MapGroup("/api/students").RequireAuthorization();
-
-studentGroup.MapGet("/", async (IStudentService studentService, CancellationToken ct) =>
-    Results.Ok(await studentService.GetAllAsync(ct)));
-
-studentGroup.MapGet("/{id:int}", async (int id, IStudentService studentService, CancellationToken ct) =>
-{
-    var student = await studentService.GetByIdAsync(id, ct);
-    return student is not null ? Results.Ok(student) : Results.NotFound();
-});
-
-studentGroup.MapPost("/", async (CreateStudentRequest request, IStudentService studentService, CancellationToken ct) =>
-{
-    var student = await studentService.CreateAsync(request, ct);
-    return Results.Created($"/api/students/{student.Id}", student);
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-studentGroup.MapPut("/{id:int}", async (int id, UpdateStudentRequest request, IStudentService studentService, CancellationToken ct) =>
-{
-    var student = await studentService.UpdateAsync(id, request, ct);
-    return student is not null ? Results.Ok(student) : Results.NotFound();
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-studentGroup.MapDelete("/{id:int}", async (int id, IStudentService studentService, CancellationToken ct) =>
-{
-    var success = await studentService.DeleteAsync(id, ct);
-    return success ? Results.NoContent() : Results.NotFound();
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-studentGroup.MapGet("/{id:int}/marks", async (int id, IEnrollmentService enrollmentService, CancellationToken ct) =>
-    Results.Ok(await enrollmentService.GetStudentEnrollmentsAsync(id, ct)));
-
-// Course Endpoints
-var courseGroup = app.MapGroup("/api/courses").RequireAuthorization();
-
-courseGroup.MapGet("/", async (ICourseService courseService, CancellationToken ct) =>
-    Results.Ok(await courseService.GetAllAsync(ct)));
-
-courseGroup.MapGet("/{id:int}", async (int id, ICourseService courseService, CancellationToken ct) =>
-{
-    var course = await courseService.GetByIdAsync(id, ct);
-    return course is not null ? Results.Ok(course) : Results.NotFound();
-});
-
-courseGroup.MapPost("/", async (CreateCourseRequest request, ICourseService courseService, CancellationToken ct) =>
-{
-    var course = await courseService.CreateAsync(request, ct);
-    return Results.Created($"/api/courses/{course.Id}", course);
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-courseGroup.MapPut("/{id:int}", async (int id, UpdateCourseRequest request, ICourseService courseService, CancellationToken ct) =>
-{
-    var course = await courseService.UpdateAsync(id, request, ct);
-    return course is not null ? Results.Ok(course) : Results.NotFound();
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-courseGroup.MapDelete("/{id:int}", async (int id, ICourseService courseService, CancellationToken ct) =>
-{
-    var success = await courseService.DeleteAsync(id, ct);
-    return success ? Results.NoContent() : Results.NotFound();
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-// Enrollment & Marks Endpoints
-courseGroup.MapPost("/{id:int}/enrollments", async (int id, CreateEnrollmentRequest request, IEnrollmentService enrollmentService, CancellationToken ct) =>
-{
-    var result = await enrollmentService.EnrollStudentAsync(id, request, ct);
-    return result is not null 
-        ? Results.Created($"/api/courses/{id}/enrollments", result) 
-        : Results.BadRequest("Invalid course/student or student already enrolled.");
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-courseGroup.MapGet("/{id:int}/enrollments", async (int id, IEnrollmentService enrollmentService, CancellationToken ct) =>
-    Results.Ok(await enrollmentService.GetCourseEnrollmentsAsync(id, ct)))
-    .RequireAuthorization(p => p.RequireRole("Teacher"));
-
-courseGroup.MapPut("/{id:int}/students/{studentId:int}/marks", async (int id, int studentId, RecordMarkRequest request, IEnrollmentService enrollmentService, CancellationToken ct) =>
-{
-    var result = await enrollmentService.RecordMarkAsync(id, studentId, request, ct);
-    return result is not null ? Results.Ok(result) : Results.NotFound("Enrollment record not found.");
-}).RequireAuthorization(p => p.RequireRole("Teacher"));
-
-// Database Seeding
-using (var scope = app.Services.CreateScope())
-{
-    var context = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    await DbInitializer.SeedAsync(context);
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    await SeedData.InitializeAsync(
+        db,
+        scope.ServiceProvider.GetRequiredService<IPasswordHasher<AppUser>>(),
+        app.Configuration,
+        CancellationToken.None);
 }
 
-app.Run();
+if (smokeRequested)
+{
+    await app.StartAsync();
+    int result;
+    try
+    {
+        result = await new SmokeRunner(
+            app.Configuration,
+            app.Services.GetRequiredService<ILogger<SmokeRunner>>())
+            .RunAsync(app.Services, CancellationToken.None);
+    }
+    finally
+    {
+        await app.StopAsync();
+    }
+    Environment.ExitCode = result;
+    return;
+}
+
+await app.RunAsync();
+
+public partial class Program { }

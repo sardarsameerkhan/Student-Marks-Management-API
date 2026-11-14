@@ -1,56 +1,66 @@
 using Microsoft.EntityFrameworkCore;
-using MarksApi.Entities;
 
 namespace MarksApi.Data;
 
-public class AppDbContext : DbContext
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
-
     public DbSet<Student> Students => Set<Student>();
     public DbSet<Course> Courses => Set<Course>();
     public DbSet<Enrollment> Enrollments => Set<Enrollment>();
-    public DbSet<User> Users => Set<User>();
+    public DbSet<AppUser> Users => Set<AppUser>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder);
-
-        modelBuilder.Entity<Student>(b =>
+        modelBuilder.Entity<Student>(entity =>
         {
-            b.HasIndex(s => s.RegistrationNo).IsUnique();
-            b.HasIndex(s => s.Email).IsUnique();
+            entity.ToTable("students", table => table.HasCheckConstraint(
+                "ck_students_email_lowercase", "email = lower(email)"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.RegistrationNo).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.FullName).HasMaxLength(100).IsRequired();
+            entity.Property(x => x.Email).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.RegistrationNo).IsUnique();
+            entity.HasIndex(x => x.Email).IsUnique();
         });
 
-        modelBuilder.Entity<Course>(b =>
+        modelBuilder.Entity<Course>(entity =>
         {
-            b.HasIndex(c => c.Code).IsUnique();
-            b.ToTable(t => t.HasCheckConstraint("CK_courses_credit_hours", "credit_hours BETWEEN 1 AND 4"));
+            entity.ToTable("courses", table => table.HasCheckConstraint(
+                "ck_courses_credit_hours", "credit_hours BETWEEN 1 AND 4"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Code).HasMaxLength(10).IsRequired();
+            entity.Property(x => x.Title).HasMaxLength(150).IsRequired();
+            entity.Property(x => x.CreatedAtUtc).IsRequired();
+            entity.HasIndex(x => x.Code).IsUnique();
         });
 
-        modelBuilder.Entity<Enrollment>(b =>
+        modelBuilder.Entity<Enrollment>(entity =>
         {
-            b.HasIndex(e => new { e.StudentId, e.CourseId }).IsUnique();
-            b.ToTable(t => t.HasCheckConstraint("CK_enrollments_mark", "mark IS NULL OR (mark BETWEEN 0 AND 100)"));
-
-            b.HasOne(e => e.Student)
-             .WithMany(s => s.Enrollments)
-             .HasForeignKey(e => e.StudentId)
-             .OnDelete(DeleteBehavior.Restrict);
-
-            b.HasOne(e => e.Course)
-             .WithMany(c => c.Enrollments)
-             .HasForeignKey(e => e.CourseId)
-             .OnDelete(DeleteBehavior.Restrict);
+            entity.ToTable("enrollments", table => table.HasCheckConstraint(
+                "ck_enrollments_mark", "mark IS NULL OR (mark >= 0 AND mark <= 100)"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.EnrolledAtUtc).IsRequired();
+            entity.HasIndex(x => new { x.StudentId, x.CourseId }).IsUnique();
+            entity.HasOne(x => x.Student).WithMany(x => x.Enrollments)
+                .HasForeignKey(x => x.StudentId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Course).WithMany(x => x.Enrollments)
+                .HasForeignKey(x => x.CourseId).OnDelete(DeleteBehavior.Restrict);
         });
 
-        modelBuilder.Entity<User>(b =>
+        modelBuilder.Entity<AppUser>(entity =>
         {
-            b.HasIndex(u => u.Username).IsUnique();
-            b.HasOne(u => u.Student)
-             .WithMany()
-             .HasForeignKey(u => u.StudentId)
-             .OnDelete(DeleteBehavior.SetNull);
+            entity.ToTable("users", table => table.HasCheckConstraint(
+                "ck_users_role_student_link",
+                "(role = 'Teacher' AND student_id IS NULL) OR (role = 'Student' AND student_id IS NOT NULL)"));
+            entity.HasKey(x => x.Id);
+            entity.Property(x => x.Username).HasMaxLength(50).IsRequired();
+            entity.Property(x => x.PasswordHash).IsRequired();
+            entity.Property(x => x.Role).HasMaxLength(20).IsRequired();
+            entity.HasIndex(x => x.Username).IsUnique();
+            entity.HasIndex(x => x.StudentId).IsUnique();
+            entity.HasOne(x => x.Student).WithOne()
+                .HasForeignKey<AppUser>(x => x.StudentId).OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

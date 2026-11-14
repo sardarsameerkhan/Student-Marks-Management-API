@@ -1,66 +1,54 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Text;
+using MarksApi.Data;
+using MarksApi.Dtos;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
-using MarksApi.Data;
-using MarksApi.Dtos;
-using MarksApi.Entities;
 
 namespace MarksApi.Services;
 
-public class AuthService : IAuthService
+public sealed class AuthService(
+    AppDbContext db,
+    IPasswordHasher<AppUser> passwordHasher,
+    IConfiguration configuration,
+    ILogger<AuthService> logger) : IAuthService
 {
-    private readonly AppDbContext _context;
-    private readonly IConfiguration _config;
-    private readonly PasswordHasher<User> _passwordHasher = new();
-
-    public AuthService(AppDbContext context, IConfiguration config)
+    public async Task<LoginResponse> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
     {
-        _context = context;
-        _config = config;
-    }
+        var username = request.Username.Trim();
+        var user = await db.Users.SingleOrDefaultAsync(x => x.Username == username, cancellationToken);
+        if (user is null || passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password)
+            == PasswordVerificationResult.Failed)
+        {
+            logger.LogWarning("Failed login attempt for username {Username}", username);
+            throw new ApiUnauthorizedException("The username or password is incorrect.");
+        }
 
-    public async Task<LoginResponse?> LoginAsync(LoginRequest request, CancellationToken cancellationToken)
-    {
-        var user = await _context.Users
-            .AsNoTracking()
-            .FirstOrDefaultAsync(u => u.Username == request.Username, cancellationToken);
-
-        if (user == null) return null;
-
-        var result = _passwordHasher.VerifyHashedPassword(user, user.PasswordHash, request.Password);
-        if (result == PasswordVerificationResult.Failed) return null;
-
-        var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(_config["Jwt:Key"]!));
-        var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
-        var expiry = DateTime.UtcNow.AddMinutes(int.Parse(_config["Jwt:ExpiryInMinutes"] ?? "60"));
-
+        var jwtKey = configuration["Jwt:Key"]
+            ?? throw new InvalidOperationException("Jwt:Key is not configured.");
+        var expiresAt = DateTime.UtcNow.AddMinutes(configuration.GetValue<int>("Jwt:ExpiresMinutes", 60));
         var claims = new List<Claim>
         {
+            new(JwtRegisteredClaimNames.Sub, user.Id.ToString()),
             new(ClaimTypes.NameIdentifier, user.Id.ToString()),
             new(ClaimTypes.Name, user.Username),
             new(ClaimTypes.Role, user.Role)
         };
+        if (user.StudentId is int studentId)
+            claims.Add(new Claim("studentId", studentId.ToString()));
 
-        if (user.StudentId.HasValue)
-        {
-            claims.Add(new Claim("StudentId", user.StudentId.Value.ToString()));
-        }
-
+        var credentials = new SigningCredentials(
+            new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey)),
+            SecurityAlgorithms.HmacSha256);
         var token = new JwtSecurityToken(
-            issuer: _config["Jwt:Issuer"],
-            audience: _config["Jwt:Audience"],
-            claims: claims,
-            expires: expiry,
-            signingCredentials: creds
-        );
-
-        return new LoginResponse(
-            new JwtSecurityTokenHandler().WriteToken(token),
-            expiry,
-            user.Role
-        );
+            configuration["Jwt:Issuer"],
+            configuration["Jwt:Audience"],
+            claims,
+            expires: expiresAt,
+            signingCredentials: credentials);
+        logger.LogInformation("User {Username} logged in with role {Role}", user.Username, user.Role);
+        return new LoginResponse(new JwtSecurityTokenHandler().WriteToken(token), expiresAt, user.Role);
     }
 }

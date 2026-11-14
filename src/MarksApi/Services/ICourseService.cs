@@ -4,9 +4,14 @@ namespace MarksApi.Services;
 
 public interface ICourseService
 {
-    Task<IEnumerable<CourseDto>> GetAllAsync(CancellationToken cancellationToken);
-    Task<CourseDto?> GetByIdAsync(int id, CancellationToken cancellationToken);
-    Task<CourseDto> CreateAsync(CreateCourseRequest request, CancellationToken cancellationToken);
-    Task<CourseDto?> UpdateAsync(int id, UpdateCourseRequest request, CancellationToken cancellationToken);
-    Task<bool> DeleteAsync(int id, CancellationToken cancellationToken);
+    Task<PagedResponse<CourseResponse>> ListAsync(PageQuery query, CancellationToken cancellationToken);
+    Task<CourseResponse> GetAsync(int id, CancellationToken cancellationToken);
+    Task<CourseResponse> CreateAsync(CreateCourseRequest request, CancellationToken cancellationToken);
+    Task<CourseResponse> UpdateAsync(int id, UpdateCourseRequest request, CancellationToken cancellationToken);
+    Task DeleteAsync(int id, CancellationToken cancellationToken);
+    Task<EnrollmentResponse> EnrollAsync(int courseId, CreateEnrollmentRequest request, CancellationToken cancellationToken);
+    Task<PagedResponse<EnrollmentResponse>> EnrollmentsAsync(int courseId, PageQuery query, CancellationToken cancellationToken);
+    Task<EnrollmentResponse> UpdateMarkAsync(int enrollmentId, UpdateMarkRequest request, CancellationToken cancellationToken);
+    Task DeleteEnrollmentAsync(int enrollmentId, CancellationToken cancellationToken);
+    Task<CourseStatsResponse> StatsAsync(int courseId, CancellationToken cancellationToken);
 }

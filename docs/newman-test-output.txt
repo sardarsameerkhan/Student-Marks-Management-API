@@ -1,0 +1,284 @@
+npm warn deprecated har-validator@5.1.5: this library is no longer supported
+npm warn deprecated uuid@3.4.0: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated uuid@8.3.2: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+npm warn deprecated @faker-js/faker@5.5.3: Please update to a newer version.
+newman
+
+Marks API
+
+❏ Auth
+↳ Teacher Login
+  POST http://sameer-refcheck-api:8080/api/auth/login [200 OK, 688B, 594ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Student Login
+  POST http://sameer-refcheck-api:8080/api/auth/login [200 OK, 710B, 93ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Invalid Login
+  POST http://sameer-refcheck-api:8080/api/auth/login [401 Unauthorized, 363B, 114ms]
+  ✓  Expected status code: 401
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+❏ Health
+↳ Health Check
+  GET http://sameer-refcheck-api:8080/health [200 OK, 311B, 62ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Health Check Repeat
+  GET http://sameer-refcheck-api:8080/health [200 OK, 311B, 22ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+❏ Students
+↳ List Students
+  GET http://sameer-refcheck-api:8080/api/students?page=1&pageSize=50&sort=fullName [200 OK, 389B, 32ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Paged list has the documented shape
+
+↳ Search Students
+  GET http://sameer-refcheck-api:8080/api/students?search=CS-2022-001&sort=-registrationNo [200 OK, 291B, 189ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Paged list has the documented shape
+  ✓  Search returns the requested registration number
+
+↳ Clamp Student Page Query
+  GET http://sameer-refcheck-api:8080/api/students?page=0&pageSize=100 [200 OK, 389B, 22ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Paged list has the documented shape
+  ✓  Page values are corrected to server limits
+
+↳ Get Seed Student
+  GET http://sameer-refcheck-api:8080/api/students/1 [200 OK, 241B, 8ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Student Reads Own Record
+  GET http://sameer-refcheck-api:8080/api/students/1 [200 OK, 241B, 6ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Student Reads Own Transcript
+  GET http://sameer-refcheck-api:8080/api/students/1/transcript [200 OK, 422B, 42ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Student Cannot List Students
+  GET http://sameer-refcheck-api:8080/api/students [403 Forbidden, 279B, 7ms]
+  ✓  Expected status code: 403
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Student Cannot Read Other Student
+  GET http://sameer-refcheck-api:8080/api/students/2 [403 Forbidden, 362B, 6ms]
+  ✓  Expected status code: 403
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Create Student
+  POST http://sameer-refcheck-api:8080/api/students [201 Created, 326B, 37ms]
+  ✓  Expected status code: 201
+  ✓  Response has the expected JSON or empty shape
+  ✓  Created response includes a Location header
+
+↳ Duplicate Student
+  POST http://sameer-refcheck-api:8080/api/students [409 Conflict, 371B, 29ms]
+  ✓  Expected status code: 409
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Update Student
+  PUT http://sameer-refcheck-api:8080/api/students/25 [200 OK, 270B, 17ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Unknown Student
+  GET http://sameer-refcheck-api:8080/api/students/2147483647 [404 Not Found, 352B, 8ms]
+  ✓  Expected status code: 404
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Invalid Student Body
+  POST http://sameer-refcheck-api:8080/api/students [400 Bad Request, 450B, 6ms]
+  ✓  Expected status code: 400
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+❏ Courses
+↳ List Courses
+  GET http://sameer-refcheck-api:8080/api/courses?page=1&pageSize=50&sort=code [200 OK, 405B, 10ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Paged list has the documented shape
+
+↳ Get Seed Course
+  GET http://sameer-refcheck-api:8080/api/courses/1 [200 OK, 218B, 9ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Student Reads Course
+  GET http://sameer-refcheck-api:8080/api/courses/1 [200 OK, 218B, 5ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Create Course
+  POST http://sameer-refcheck-api:8080/api/courses [201 Created, 286B, 20ms]
+  ✓  Expected status code: 201
+  ✓  Response has the expected JSON or empty shape
+  ✓  Created response includes a Location header
+
+↳ Update Course
+  PUT http://sameer-refcheck-api:8080/api/courses/15 [200 OK, 231B, 16ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Unknown Course
+  GET http://sameer-refcheck-api:8080/api/courses/2147483647 [404 Not Found, 351B, 6ms]
+  ✓  Expected status code: 404
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+❏ Reports
+↳ Transcript Report
+  GET http://sameer-refcheck-api:8080/api/students/1/transcript [200 OK, 422B, 10ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Transcript weighted average is credit-hour weighted
+
+↳ Course Stats Report
+  GET http://sameer-refcheck-api:8080/api/courses/1/stats [200 OK, 256B, 22ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Course statistics average only graded marks
+
+❏ Enrollments and Marks
+↳ Enroll Student
+  POST http://sameer-refcheck-api:8080/api/courses/15/enrollments [201 Created, 234B, 43ms]
+  ✓  Expected status code: 201
+  ✓  Response has the expected JSON or empty shape
+  ✓  Created response includes a Location header
+
+↳ Duplicate Enrollment
+  POST http://sameer-refcheck-api:8080/api/courses/15/enrollments [409 Conflict, 371B, 23ms]
+  ✓  Expected status code: 409
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ List Course Enrollments
+  GET http://sameer-refcheck-api:8080/api/courses/15/enrollments?page=1&pageSize=50&sort=studentId [200 OK, 248B, 10ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Paged list has the documented shape
+
+↳ Search Course Enrollments
+  GET http://sameer-refcheck-api:8080/api/courses/15/enrollments?search=Postman [200 OK, 248B, 75ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+  ✓  Paged list has the documented shape
+  ✓  Search returns at least one matching enrollment
+
+↳ Course Stats
+  GET http://sameer-refcheck-api:8080/api/courses/15/stats [200 OK, 268B, 8ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Unknown Course Stats
+  GET http://sameer-refcheck-api:8080/api/courses/2147483647/stats [404 Not Found, 351B, 5ms]
+  ✓  Expected status code: 404
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Delete Enrolled Student
+  DELETE http://sameer-refcheck-api:8080/api/students/25 [409 Conflict, 363B, 9ms]
+  ✓  Expected status code: 409
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Delete Enrolled Course
+  DELETE http://sameer-refcheck-api:8080/api/courses/15 [409 Conflict, 362B, 11ms]
+  ✓  Expected status code: 409
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Mark 101 Rejected
+  PUT http://sameer-refcheck-api:8080/api/enrollments/29/mark [400 Bad Request, 338B, 7ms]
+  ✓  Expected status code: 400
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Mark -1 Rejected
+  PUT http://sameer-refcheck-api:8080/api/enrollments/29/mark [400 Bad Request, 338B, 4ms]
+  ✓  Expected status code: 400
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Update Mark
+  PUT http://sameer-refcheck-api:8080/api/enrollments/29/mark [200 OK, 196B, 21ms]
+  ✓  Expected status code: 200
+  ✓  Response has the expected JSON or empty shape
+
+↳ Unknown Enrollment Mark
+  PUT http://sameer-refcheck-api:8080/api/enrollments/2147483647/mark [404 Not Found, 355B, 9ms]
+  ✓  Expected status code: 404
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Delete Enrollment
+  DELETE http://sameer-refcheck-api:8080/api/enrollments/29 [204 No Content, 81B, 18ms]
+  ✓  Expected status code: 204
+  ✓  Response has the expected JSON or empty shape
+
+↳ Delete Course
+  DELETE http://sameer-refcheck-api:8080/api/courses/15 [204 No Content, 81B, 17ms]
+  ✓  Expected status code: 204
+  ✓  Response has the expected JSON or empty shape
+
+↳ Delete Student
+  DELETE http://sameer-refcheck-api:8080/api/students/25 [204 No Content, 81B, 20ms]
+  ✓  Expected status code: 204
+  ✓  Response has the expected JSON or empty shape
+
+❏ Negative Tests
+↳ Unauthenticated Courses
+  GET http://sameer-refcheck-api:8080/api/courses [401 Unauthorized, 310B, 6ms]
+  ✓  Expected status code: 401
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+↳ Unknown Enrollment Delete
+  DELETE http://sameer-refcheck-api:8080/api/enrollments/2147483647 [404 Not Found, 355B, 8ms]
+  ✓  Expected status code: 404
+  ✓  Response has the expected JSON or empty shape
+  ✓  Error uses Problem Details
+
+┌─────────────────────────┬───────────────────┬──────────────────┐
+│                         │          executed │           failed │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              iterations │                 1 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│                requests │                43 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│            test-scripts │                43 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│      prerequest-scripts │                43 │                0 │
+├─────────────────────────┼───────────────────┼──────────────────┤
+│              assertions │               116 │                0 │
+├─────────────────────────┴───────────────────┴──────────────────┤
+│ total run duration: 4.4s                                       │
+├────────────────────────────────────────────────────────────────┤
+│ total data received: 6.46kB (approx)                           │
+├────────────────────────────────────────────────────────────────┤
+│ average response time: 39ms [min: 4ms, max: 594ms, s.d.: 92ms] │
+└────────────────────────────────────────────────────────────────┘
+npm notice
+npm notice New major version of npm available! 10.9.9 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice
